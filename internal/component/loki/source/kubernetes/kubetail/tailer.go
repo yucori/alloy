@@ -160,6 +160,25 @@ func (t *tailer) tail(ctx context.Context, handler loki.EntryHandler) error {
 		offsetTime = &metav1.Time{Time: lastReadTime}
 	}
 
+	var podLogOpts *corev1.PodLogOptions
+
+	if t.opts.TailFromEnd {
+			tailLines := int64(t.opts.TailLines)
+			podLogOpts = &corev1.PodLogOptions{
+					Follow:     true,
+					Container:  containerName,
+					Timestamps: true,
+					TailLines:  &tailLines,
+			}
+	} else {
+			podLogOpts = &corev1.PodLogOptions{
+					Follow:     true,
+					Container:  containerName,
+					SinceTime:  offsetTime,
+					Timestamps: true,
+			}
+	}
+
 	req := t.opts.Client.CoreV1().Pods(key.Namespace).GetLogs(key.Name, &corev1.PodLogOptions{
 		Follow:     true,
 		Container:  containerName,
@@ -266,8 +285,10 @@ func (t *tailer) tail(ctx context.Context, handler loki.EntryHandler) error {
 				return nil
 			case ch <- entry:
 				// Save position after it's been sent over the channel.
-				t.opts.Positions.Put(positionsEnt.Path, positionsEnt.Labels, entryTimestamp.UnixMicro())
-				t.target.Report(entryTimestamp, nil)
+				if !t.opts.TailFromEnd {
+        t.opts.Positions.Put(positionsEnt.Path, positionsEnt.Labels, entryTimestamp.UnixMicro())
+    		}
+    		t.target.Report(entryTimestamp, nil)
 			}
 		}
 
