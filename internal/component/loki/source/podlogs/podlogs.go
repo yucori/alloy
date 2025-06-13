@@ -41,7 +41,8 @@ func init() {
 // component.
 type Arguments struct {
 	ForwardTo []loki.LogsReceiver `alloy:"forward_to,attr"`
-
+	TailFromEnd  bool                   `alloy:"tail_from_end,attr,optional"` // 새로운 옵션
+	TailLines int `alloy:"tail_lines,attr,optional"`
 	// Client settings to connect to Kubernetes.
 	Client commonk8s.ClientArguments `alloy:"client,block,optional"`
 
@@ -54,6 +55,17 @@ type Arguments struct {
 // DefaultArguments holds default settings for loki.source.kubernetes.
 var DefaultArguments = Arguments{
 	Client: commonk8s.DefaultClientArguments,
+	TailLines: 1000,
+}
+func (a *Arguments) Validate() error {
+    if a.TailFromEnd {
+        if a.TailLines < 1 {
+            return fmt.Errorf("tail_lines must be ≥1 when tail_from_end=true")
+        }
+    } else if a.TailLines != 0 {
+        return fmt.Errorf("tail_lines can only be set when tail_from_end=true")
+    }
+    return nil
 }
 
 // SetToDefault implements syntax.Defaulter.
@@ -243,6 +255,8 @@ func (c *Component) updateTailer(args Arguments) error {
 		Client:    clientSet,
 		Handler:   loki.NewEntryHandler(c.handler.Chan(), func() {}),
 		Positions: c.positions,
+		TailFromEnd: args.TailFromEnd,
+    TailLines: args.TailLines,
 	}
 	c.lastOptions = managerOpts
 
@@ -251,6 +265,14 @@ func (c *Component) updateTailer(args Arguments) error {
 	//
 	// TODO(rfratto): should we have a generous update timeout to prevent this
 	// from potentially hanging forever?
+	
+	if args.TailFromEnd {
+        for _, target := range c.tailer.Targets() {
+            entry := entryForTarget(target)
+            c.positions.Remove(entry.Path, entry.Labels)
+        }
+    }
+	
 	_ = c.tailer.UpdateOptions(context.Background(), managerOpts)
 	return nil
 }
