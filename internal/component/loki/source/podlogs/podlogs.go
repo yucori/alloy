@@ -100,6 +100,22 @@ var (
 	_ cluster.Component        = (*Component)(nil)
 )
 
+// entryForTarget converts a kubetail.Target into a positions.Entry.
+// This is a local helper function for the podlogs package.
+func entryForTarget(target *kubetail.Target) positions.Entry {
+	labels := target.Labels()
+	namespace := labels.Get("__mata_kubernetes_namespace__")
+	podName := labels.Get("__meta_kubernetes_pod_name__")
+	containerName := labels.Get("__meta_kubernetes_container_name__")
+
+	path := fmt.Sprintf("%s/%s/%s", namespace, podName, containerName)
+
+	return positions.Entry{
+		Path:   path,
+		Labels: labels.String(),
+	}
+}
+
 // New creates a new loki.source.podlogs component.
 func New(o component.Options, args Arguments) (*Component, error) {
 	err := os.MkdirAll(o.DataPath, 0750)

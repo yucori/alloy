@@ -179,12 +179,7 @@ func (t *tailer) tail(ctx context.Context, handler loki.EntryHandler) error {
 			}
 	}
 
-	req := t.opts.Client.CoreV1().Pods(key.Namespace).GetLogs(key.Name, &corev1.PodLogOptions{
-		Follow:     true,
-		Container:  containerName,
-		SinceTime:  offsetTime,
-		Timestamps: true, // Should be forced to true so we can parse the original timestamp back out.
-	})
+	req := t.opts.Client.CoreV1().Pods(key.Namespace).GetLogs(key.Name, podLogOpts)
 
 	stream, err := req.Stream(ctx)
 	if err != nil {
